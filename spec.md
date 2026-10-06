@@ -15,7 +15,7 @@ A small real system beats a large simulated one.
 ## 2. Architecture and flows
 
 Components:
-  Browser (React on S3 website) --SRP--> Cognito User Pool (ID token: sub, custom:orgId)
+  Browser (React on CloudFront + private S3 website) --SRP--> Cognito User Pool (ID token: sub, custom:orgId)
   Browser --Bearer ID token--> API Gateway HTTP API (JWT authorizer) --> Lambdas
   Lambdas (projects, tasks, users, notifications, metrics) --> DynamoDB single table
   tasks Lambda --PutEvents--> EventBridge default bus --rule--> notification consumer Lambda
@@ -51,8 +51,8 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
 3.1 Stack
 - Frontend: React + Vite + JavaScript (no TypeScript).
 - Backend: Node.js JavaScript, ES Modules only (package.json "type":"module"; never mix CommonJS), AWS SDK v3.
-- Tests: Vitest + aws-sdk-client-mock. Bundling: SAM esbuild (Format esm, OutExtension .js=.mjs, Target per runtime).
-- Lambda runtime: nodejs22.x. Region: ap-southeast-2. Local Node major version must match the runtime.
+- Tests: Vitest + aws-sdk-client-mock. Bundling: SAM esbuild (Format esm, OutExtension .js=.mjs, Target node22, EntryPoints [index.js], External ["@aws-sdk/*"]).
+- Lambda runtime: nodejs22.x. Region: ap-southeast-2. (Deviation: local Node is 24, Lambda and CodeBuild use 22, and we externalize AWS SDK v3 to avoid dynamic require errors).
 - No samconfig.toml: deploy commands are npm scripts in root package.json; CodeBuild passes explicit flags.
 - Lambda: 256 MB, 10 s timeout. DynamoDB: on-demand billing.
 
@@ -72,9 +72,9 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
 - NEVER trust orgId from body, query string, path or headers. Missing/empty orgId claim -> 403.
 
 3.4 Hosting and config
-- React build on S3 static website hosting. CloudFront only if Phase 0 proves it is required (see ENVIRONMENT FINDINGS).
+- React build on a PRIVATE S3 bucket (all public access blocked) served by CloudFront with Origin Access Control. Rule: the CloudFront distribution must NEVER reference the API (prevents a circular dependency). SPA fallback: CloudFront turns 403 and 404 into /index.html with status 200. The pipeline must create a CloudFront invalidation after uploading the frontend.
 - Deterministic bucket name: uwpp-<AccountId>-<Region>-site (built with !Sub in template.yaml).
-- CORS configured on the HTTP API only: AllowOrigins = [S3 website origin, http://localhost:5173], methods GET,POST,PATCH,OPTIONS,
+- CORS configured on the HTTP API only: AllowOrigins = [https://<distribution domain>, http://localhost:5173], methods GET,POST,PATCH,OPTIONS,
   headers Authorization,Content-Type. Lambdas do not set CORS headers.
 - Frontend config: build step reads CloudFormation stack outputs and writes VITE_API_URL, VITE_USER_POOL_ID,
   VITE_USER_POOL_CLIENT_ID (frontend/.env.production, gitignored). No secrets in React, ever.
@@ -88,7 +88,7 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
   Resources are the table ARN (and its index ARN). No "*" unless unavoidable and justified here.
 
 3.6 Monitoring
-- Explicit AWS::Logs::LogGroup per Lambda, RetentionInDays 7, attached with the function LoggingConfig.
+- Explicit AWS::Logs::LogGroup per Lambda, RetentionInDays 7, attached with the function LoggingConfig. (Rule: the explicit LogGroup is created in the SAME phase as the function, with no explicit LogGroupName).
 - One CloudWatch alarm: Lambda Errors >= 1 over 60 s on the tasks function. No alarm action required.
 - Never log tokens, the Authorization header or the full Lambda event. Log IDs and error messages only.
 
@@ -120,6 +120,7 @@ TypeScript, CommonJS, Scan operations in application code, fake AWS services in 
 - Pipeline option chosen: Preferred (GitHub -> CodePipeline -> CodeBuild via CodeConnections)
 - Session behavior (credential lifetime, what persists after lab ends): N/A (Standard AWS Account)
 - Limitations and deviations from this SPEC: We must use CloudFront to serve the S3 website because `crypto.subtle` is undefined over plain HTTP. We had to use Node.js 22.x and externalize the AWS SDK in esbuild to avoid dynamic require errors.
+- Phase 1 Outputs: ApiUrl (https://teqfifz5k9.execute-api.ap-southeast-2.amazonaws.com), SiteUrl (https://daic6fejgu1s5.cloudfront.net), DistributionId (EJ0G99S9VL4VG).
 
 ## 5. DynamoDB schema (one table, NO Scan in application code)
 
@@ -190,7 +191,7 @@ Task statuses: TODO, IN_PROGRESS, DONE.
 
 ## 8. Environment variables and outputs
 Lambda env: TABLE_NAME (all), TOPIC_ARN (consumer, Phase 5 optional).
-Stack outputs: ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl.
+Stack outputs: ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl (https CloudFront URL), DistributionId.
 Frontend build vars: VITE_API_URL, VITE_USER_POOL_ID, VITE_USER_POOL_CLIENT_ID.
 
 ## 9. Global rules for Antigravity
@@ -233,11 +234,11 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 0
-- Completed functionality: AWS Feasibility Spike (now deleted)
-- AWS resources deployed: none (spike cleaned up)
-- Routes live: none
-- Env vars / stack outputs: none
-- Deployment status: N/A
-- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization.
-- Next phase: Phase 1
+- Last completed phase: Phase 1
+- Completed functionality: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created.
+- AWS resources deployed: uwpp-app stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, SiteBucket, SiteDistribution)
+- Routes live: GET /users
+- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId
+- Deployment status: Deployed (uwpp-app)
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. Phase 1 includes the table and GET /users; Phase 2 adds projects and tasks.
+- Next phase: Phase 2
