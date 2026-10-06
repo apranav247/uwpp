@@ -103,8 +103,8 @@ Resources:
   UsersFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/users/
-      Handler: index.handler
+      CodeUri: .
+      Handler: backend/users/index.handler
       Events:
         Api:
           Type: HttpApi
@@ -128,7 +128,7 @@ Resources:
         OutExtension:
           - .js=.mjs
         EntryPoints:
-          - index.js
+          - backend/users/index.js
         External:
           - '@aws-sdk/*'
 
@@ -140,8 +140,8 @@ Resources:
   ProjectsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/projects/
-      Handler: index.handler
+      CodeUri: .
+      Handler: backend/projects/index.handler
       Events:
         GetApi:
           Type: HttpApi
@@ -173,7 +173,7 @@ Resources:
         OutExtension:
           - .js=.mjs
         EntryPoints:
-          - index.js
+          - backend/projects/index.js
         External:
           - '@aws-sdk/*'
 
@@ -185,8 +185,8 @@ Resources:
   TasksFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/tasks/
-      Handler: index.handler
+      CodeUri: .
+      Handler: backend/tasks/index.handler
       Events:
         GetApi:
           Type: HttpApi
@@ -232,7 +232,7 @@ Resources:
         OutExtension:
           - .js=.mjs
         EntryPoints:
-          - index.js
+          - backend/tasks/index.js
         External:
           - '@aws-sdk/*'
 
