@@ -52,7 +52,7 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
 - Frontend: React + Vite + JavaScript (no TypeScript).
 - Backend: Node.js JavaScript, ES Modules only (package.json "type":"module"; never mix CommonJS), AWS SDK v3.
 - Tests: Vitest + aws-sdk-client-mock. Bundling: SAM esbuild (Format esm, OutExtension .js=.mjs, Target per runtime).
-- Lambda runtime: <LOCKED AFTER PHASE 0>. Region: <LOCKED AFTER PHASE 0>. Local Node major version must match the runtime.
+- Lambda runtime: nodejs22.x. Region: ap-southeast-2. Local Node major version must match the runtime.
 - No samconfig.toml: deploy commands are npm scripts in root package.json; CodeBuild passes explicit flags.
 - Lambda: 256 MB, 10 s timeout. DynamoDB: on-demand billing.
 
@@ -104,22 +104,22 @@ Repository/service/controller layers, interfaces, wrappers, extra utility files,
 TypeScript, CommonJS, Scan operations in application code, fake AWS services in deployed code.
 
 ## 4. ENVIRONMENT FINDINGS (filled after Phase 0)
-- Local: OS/shell | node | npm | git | sam | aws cli
-- Region:
-- Lambda runtime chosen (and others available):
-- IAM mode: R (can create roles) / L (LabRole only). Role name/ARN parameter:
-- CloudFormation/SAM deploy end to end: 
-- Cognito (custom attribute, ID token contains custom:orgId, admin auth flow works):
-- HTTP API JWT authorizer (401 without token, 200 with token, claims visible in Lambda):
-- DynamoDB / EventBridge rule -> Lambda / SNS email confirm / CloudWatch alarm:
-- esbuild layout verdict (shared.js import + root package.json deps): 
-- S3 website: public hosting allowed? Website URL format (exact pattern):
-- SRP in browser on plain HTTP S3 URL (window.isSecureContext, typeof crypto.subtle):
-- CloudFront required: YES / NO
-- CodeBuild: | CodePipeline: | GitHub connection authorized:
-- Pipeline option chosen: Preferred / Fallback a / Fallback b
-- Session behavior (credential lifetime, what persists after lab ends):
-- Limitations and deviations from this SPEC:
+- Local: Windows / PowerShell | node 24.13.0 | npm 11.6.2 | git 2.55.0.windows.3 | sam installed | aws cli installed
+- Region: ap-southeast-2
+- Lambda runtime chosen (and others available): nodejs22.x
+- IAM mode: Mode R (can create roles). Role name/ARN parameter: N/A
+- CloudFormation/SAM deploy end to end: SUCCESS
+- Cognito (custom attribute, ID token contains custom:orgId, admin auth flow works): SUCCESS (orgId and sub decoded correctly)
+- HTTP API JWT authorizer (401 without token, 200 with token, claims visible in Lambda): SUCCESS
+- DynamoDB / EventBridge rule -> Lambda / SNS email confirm / CloudWatch alarm: SUCCESS
+- esbuild layout verdict (shared.js import + root package.json deps): SUCCESS (with External: ['@aws-sdk/*'] configuration to avoid 'node:https' dynamic require errors)
+- S3 website: public hosting allowed? YES. Website URL format (exact pattern): http://<bucket-name>.s3-website-ap-southeast-2.amazonaws.com
+- SRP in browser on plain HTTP S3 URL (window.isSecureContext, typeof crypto.subtle): window.isSecureContext is false, typeof crypto.subtle is undefined.
+- CloudFront required: YES (Amplify SRP authentication requires crypto.subtle which requires a secure context / HTTPS).
+- CodeBuild: OK | CodePipeline: OK | GitHub connection authorized: YES
+- Pipeline option chosen: Preferred (GitHub -> CodePipeline -> CodeBuild via CodeConnections)
+- Session behavior (credential lifetime, what persists after lab ends): N/A (Standard AWS Account)
+- Limitations and deviations from this SPEC: We must use CloudFront to serve the S3 website because `crypto.subtle` is undefined over plain HTTP. We had to use Node.js 22.x and externalize the AWS SDK in esbuild to avoid dynamic require errors.
 
 ## 5. DynamoDB schema (one table, NO Scan in application code)
 
@@ -233,11 +233,11 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: none
-- Completed functionality: none
-- AWS resources deployed: none
+- Last completed phase: Phase 0
+- Completed functionality: AWS Feasibility Spike (now deleted)
+- AWS resources deployed: none (spike cleaned up)
 - Routes live: none
 - Env vars / stack outputs: none
-- Deployment status: none
-- Known limitations: none yet
-- Next phase: Phase 0
+- Deployment status: N/A
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization.
+- Next phase: Phase 1
