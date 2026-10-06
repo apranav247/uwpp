@@ -1,0 +1,11 @@
+.env
+.env.*
+frontend/.env.production
+*.pem
+credentials
+.aws/
+node_modules/
+dist/
+.aws-sam/
+coverage/
+.DS_Store
