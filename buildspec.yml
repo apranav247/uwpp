@@ -1,0 +1,20 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - npm ci
+      - pip install --quiet aws-sam-cli
+      - export PATH=$PATH:./node_modules/.bin
+  build:
+    commands:
+      - npm test
+      - sam validate --lint
+      - sam build
+      - sam deploy --stack-name $APP_STACK_NAME --region $AWS_REGION --s3-bucket $ARTIFACT_BUCKET --s3-prefix sam --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset
+  post_build:
+    commands:
+      - aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs" --output table
+      # Phase 4 adds the frontend build, S3 upload and CloudFront invalidation here
