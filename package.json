@@ -7,7 +7,8 @@
     "validate": "sam validate --lint",
     "build": "sam build",
     "deploy": "sam build && sam deploy --stack-name uwpp-app --region ap-southeast-2 --resolve-s3 --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "env": "node scripts/env.js"
   },
   "dependencies": {
     "@aws-sdk/client-cloudformation": "^3.600.0",

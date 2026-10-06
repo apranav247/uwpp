@@ -164,6 +164,7 @@ Honest limit: the DynamoDB table is shared, and isolation relies on correct key 
 
 ## 6. API contract (HTTP API, JWT authorizer on EVERY route)
 All responses are JSON. Errors: {"error":"message"} with 400 (bad input), 403 (no orgId claim), 404, 500.
+Also: 400 for non-UUID IDs, 400 for assignee not in organization, 404 for project not found, 404 for task not found.
 Success: 200 (GET, PATCH) or 201 (POST). Collections are returned as {"items":[...]}.
 
 - GET /projects                 -> items sorted by client
@@ -234,11 +235,15 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 1
-- Completed functionality: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created.
-- AWS resources deployed: uwpp-app stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, SiteBucket, SiteDistribution)
-- Routes live: GET /users
+- Last completed phase: Phase 2
+- Completed functionality: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
+- AWS resources deployed: uwpp-app stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution)
+- Routes live:
+  - /users
+  - /projects
+  - /tasks
+  - /tasks/{taskId}
 - Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId
 - Deployment status: Deployed (uwpp-app)
-- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. Phase 1 includes the table and GET /users; Phase 2 adds projects and tasks.
-- Next phase: Phase 2
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints.
+- Next phase: Phase 3

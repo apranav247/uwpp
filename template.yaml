@@ -137,6 +137,110 @@ Resources:
     Properties:
       RetentionInDays: 7
 
+  ProjectsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/projects/
+      Handler: index.handler
+      Events:
+        GetApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /projects
+            Method: GET
+        PostApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /projects
+            Method: POST
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: 
+                - dynamodb:Query
+                - dynamodb:PutItem
+              Resource: !GetAtt Table.Arn
+      LoggingConfig:
+        LogGroup: !Ref ProjectsLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: node22
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - index.js
+        External:
+          - '@aws-sdk/*'
+
+  ProjectsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
+  TasksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/tasks/
+      Handler: index.handler
+      Events:
+        GetApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tasks
+            Method: GET
+        PostApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tasks
+            Method: POST
+        PatchApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tasks/{taskId}
+            Method: PATCH
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: 
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+              Resource: !GetAtt Table.Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub "${Table.Arn}/index/GSI1"
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default"
+      LoggingConfig:
+        LogGroup: !Ref TasksLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: node22
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - index.js
+        External:
+          - '@aws-sdk/*'
+
+  TasksLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
   SiteBucket:
     Type: AWS::S3::Bucket
     Properties:
