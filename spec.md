@@ -240,7 +240,7 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 5
+- Last completed phase: Phase 6
 - Completed functionality:
   - **Phase 0-2 (Verified)**: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
   - **Phase 3 (Verified)**: Automated CI/CD pipeline using GitHub (source repository, `main` branch), AWS CodePipeline, CodeBuild, AWS SAM, and CloudFormation.
@@ -250,8 +250,17 @@ DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, d
     - Execution Status: The `uwpp-pipeline` and `uwpp-app` stacks are in `UPDATE_COMPLETE` status. CodePipeline execution is verified as `Succeeded` for both Source and Build stages. The successful Phase 3 CodeBuild `uwpp-pipeline-build` run (revision `10dae0bf682f70acac6fab5825e0d803be5d5754`) matches the Phase 3 commit `10dae0b` in the repository, demonstrating a successful deployment of the application stack.
   - **Phase 4 (Verified)**: Commit 10d55e8. Frontend React app implemented with Amplify Auth and API client. Pipeline extended to build frontend, upload to private S3 site bucket, and invalidate CloudFront. GitHub push triggered CodePipeline successfully. Live browser tests passed on deployed HTTPS URL: Cognito login, project/task creation, status updates, assignment, refresh behavior, and cross-organization isolation (tenant separation). User C cannot see User A's organization data, and assignee dropdowns are organization-scoped.
   - **Phase 5 (Verified)**: EventBridge task-assignment event reaches the consumer and creates a notification. User B receives the expected notification in the API and browser UI. User A cannot see User B's notification; User C in another organization receives no `orga` notifications. Repeating the same assignment during manual verification created no additional notification. Duplicate-event delivery idempotency has not been independently verified. Cross-organization assignment is rejected with HTTP 400. Notification panel works, and mark-as-seen persistence and polling were manually verified.
+  - **Phase 6 (Verified)**: Commit `0730c391fbbd29c572680af07340d45e4304100f`. `GET /metrics`, the team metrics panel, and the Tasks Lambda CloudWatch Errors alarm were implemented and verified.
+    - CodePipeline execution for commit `0730c391fbbd29c572680af07340d45e4304100f` succeeded.
+    - CloudFormation stack `uwpp-app` reached `UPDATE_COMPLETE`.
+    - Unauthenticated `GET /metrics` returned HTTP 401.
+    - User A in `orga`: 3 tasks, 2 done, 66.7% completion, 0 unassigned; the query-string override did not change the organization scope.
+    - User C in `orgb`: 1 task, 0 done, 0% completion.
+    - Browser verification passed for metrics display, task-status refresh, assignment refresh, tenant isolation, and absence of reported CORS or uncaught console errors.
+    - Alarm `uwpp-app-TasksErrorsAlarm-ZYMZwJGcRxCi` was `OK`, configured for `AWS/Lambda` `Errors`, threshold 1, 60-second period, one evaluation period.
+    - All seven listed UWPP log groups had seven-day retention, and all six deployed Lambda functions had their expected explicit log-group configuration.
 - AWS resources deployed:
-  - `uwpp-app` stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution, NotificationsFunction, ConsumerFunction, NotificationTopic)
+  - `uwpp-app` stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution, NotificationsFunction, ConsumerFunction, NotificationTopic, MetricsFunction, MetricsLogGroup, TasksErrorsAlarm)
   - `uwpp-pipeline` stack (ArtifactBucket, CodeBuildRole, PipelineRole, BuildProject, Pipeline)
 - Routes live:
   - /users
@@ -259,8 +268,9 @@ DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, d
   - /tasks
   - /tasks/{taskId}
   - /notifications
-- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline), NotificationTopicArn
+  - /metrics
+- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline), NotificationTopicArn, TasksErrorsAlarmName
 - Deployment status: Deployed (`uwpp-app` and `uwpp-pipeline` are `UPDATE_COMPLETE`).
-- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`. Authentication token storage follows the configured AWS Amplify Auth storage behavior. No drag-and-drop. Notifications polling rather than push, no mark-read API, last-seen state stored in browser local storage, maximum 50 API notifications, and SNS publish failures logged without failing the consumer. Metrics are not yet implemented.
-- Next phase: Phase 6 (Planned)
-  - **Phase 6 Planned Work**: Scope remains to be decided.
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`. Authentication token storage follows the configured AWS Amplify Auth storage behavior. No drag-and-drop. Notifications polling rather than push, no mark-read API, last-seen state stored in browser local storage, maximum 50 API notifications, and SNS publish failures logged without failing the consumer. Metrics are recomputed on each request; no caching. The alarm has no alarm actions configured and detects Lambda `Errors`, not every handled HTTP 5xx response. Task queries have a 50-page safety cap; the users query is limited to 100 users.
+- Next phase: Phase 7 (Planned)
+  - **Phase 7 Planned Work**: Scope remains to be decided.
