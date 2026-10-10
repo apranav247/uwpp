@@ -113,3 +113,8 @@ The project was delivered across two agile sprints. The board URL is: `<board UR
 4. **Notifications**: Log into a new window as User B. Show the EventBridge-driven notification arriving in the UI ("User A assigned you a task").
 5. **Team Metrics**: Navigate to the metrics panel as User A. Show the completion rate and tasks-per-person update immediately as tasks are marked `DONE`.
 6. **Security Audit**: Open a terminal and run `npm run integration` to prove all 36 security and tenant isolation rules pass automatically against the live infrastructure.
+
+The project was delivered across two agile sprints. A project board URL is not included in this submission.
+
+- **What could be improved**: Integration and deployment verification could be more automated. Notifications currently use polling, and pagination and monitoring could be enhanced.
+- **Action items**: Add automated deployment smoke tests, implement notification pagination and improved delivery, and extend monitoring and alerting.
