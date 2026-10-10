@@ -33,6 +33,8 @@ export const projectSk = (id) => `PROJECT#${id}`;
 export const taskSk = (id) => `TASK#${id}`;
 export const taskGsi1Pk = (orgId, projectId) => `ORG#${orgId}#PROJECT#${projectId}`;
 export const taskGsi1Sk = (id) => `TASK#${id}`;
+export const notifSk = (userId, isoTimestamp, id) => `NOTIF#${userId}#${isoTimestamp}#${id}`;
+export const notifPrefix = (userId) => `NOTIF#${userId}#`;
 
 export const parseBody = (event) => {
     if (!event.body) return null;

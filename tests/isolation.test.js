@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { handler as projectsHandler } from '../backend/projects/index.js';
 import { handler as tasksHandler } from '../backend/tasks/index.js';
+import { handler as notificationsHandler } from '../backend/notifications/index.js';
 import * as shared from '../backend/shared.js';
 
 // We intercept the ddb export from shared.js
@@ -76,6 +77,7 @@ describe('Tenant Isolation', () => {
         shared.ddb._seed({ PK: 'ORG#orga', SK: 'PROJECT#11111111-1111-1111-1111-111111111111', entityType: 'PROJECT', projectId: '11111111-1111-1111-1111-111111111111' });
         shared.ddb._seed({ PK: 'ORG#orga', SK: 'TASK#11111111-1111-1111-1111-222222222222', GSI1PK: 'ORG#orga#PROJECT#11111111-1111-1111-1111-111111111111', entityType: 'TASK', taskId: '11111111-1111-1111-1111-222222222222' });
         shared.ddb._seed({ PK: 'ORG#orga', SK: 'USER#11111111-1111-1111-1111-333333333333', entityType: 'USER', userId: '11111111-1111-1111-1111-333333333333' });
+        shared.ddb._seed({ PK: 'ORG#orga', SK: 'NOTIF#user-a#2024-01-01T00:00:00Z#n1', entityType: 'NOTIFICATION', notificationId: 'n1', userId: 'user-a' });
 
         // Seed OrgB
         shared.ddb._seed({ PK: 'ORG#orgb', SK: 'PROJECT#bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', entityType: 'PROJECT', projectId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' });
@@ -113,6 +115,10 @@ describe('Tenant Isolation', () => {
         // f. OrgA data remains unchanged
         const orgaTask = shared.ddb._getStore().find(i => i.taskId === '11111111-1111-1111-1111-222222222222');
         expect(orgaTask.status).toBeUndefined(); // Didn't get changed to DONE
+
+        // g. OrgB user GET /notifications returns empty (cannot see OrgA notifications)
+        const r6 = await notificationsHandler(getEvent('GET', '/notifications', 'orgb', 'user-b'));
+        expect(JSON.parse(r6.body).items.length).toBe(0);
     });
 
     it('OrgA user proves isolation against OrgB data', async () => {
@@ -140,5 +146,9 @@ describe('Tenant Isolation', () => {
         // f. OrgB data remains unchanged
         const orgbTask = shared.ddb._getStore().find(i => i.taskId === 'bbbbbbbb-bbbb-bbbb-bbbb-cccccccccccc');
         expect(orgbTask.status).toBeUndefined(); // Didn't get changed to DONE
+
+        // g. Another OrgA user GET /notifications returns empty (cannot see user-a's notifications)
+        const r6 = await notificationsHandler(getEvent('GET', '/notifications', 'orga', 'user-other'));
+        expect(JSON.parse(r6.body).items.length).toBe(0);
     });
 });

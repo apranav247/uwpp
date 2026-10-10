@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { signIn, signOut, getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth';
-import { listProjects, createProject, listTasks, createTask, updateTask, listUsers } from './api.js';
+import { listProjects, createProject, listTasks, createTask, updateTask, listUsers, listNotifications } from './api.js';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -23,15 +23,75 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [lastSeen, setLastSeen] = useState(null);
+  const pollRef = useRef({ inFlight: false, timer: null });
+
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      pollNotifications();
+      pollRef.current.timer = setInterval(() => {
+        if (!document.hidden && !pollRef.current.inFlight) {
+          pollNotifications();
+        }
+      }, 12000);
+      return () => {
+        if (pollRef.current.timer) clearInterval(pollRef.current.timer);
+      };
+    }
+  }, [user]);
+
+  async function pollNotifications() {
+    pollRef.current.inFlight = true;
+    try {
+      const data = await listNotifications();
+      setNotifications(data.items || []);
+    } catch (e) {
+      // Ignored; api.js handles session expiry
+    } finally {
+      pollRef.current.inFlight = false;
+    }
+  }
+
+  function loadLastSeen(userId) {
+    try {
+      const stored = localStorage.getItem(`uwpp:lastSeen:${userId}`);
+      if (stored) setLastSeen(stored);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  function updateLastSeen() {
+    if (!user) return;
+    const now = new Date().toISOString();
+    setLastSeen(now);
+    try {
+      localStorage.setItem(`uwpp:lastSeen:${user.userId}`, now);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  function toggleNotifications() {
+    setShowNotifications(!showNotifications);
+    if (!showNotifications) {
+      updateLastSeen();
+    }
+  }
 
   async function checkAuth() {
     try {
       const currentUser = await getCurrentUser();
       const attributes = await fetchUserAttributes();
       setUser({ ...currentUser, email: attributes.email });
+      loadLastSeen(currentUser.userId);
       loadInitialData();
     } catch (e) {
       setUser(null);
@@ -69,12 +129,17 @@ function App() {
   }
 
   async function handleLogout() {
+    if (pollRef.current.timer) clearInterval(pollRef.current.timer);
+    pollRef.current.inFlight = false;
     await signOut();
     setUser(null);
     setProjects([]);
     setTasks([]);
     setUsers([]);
     setActiveProjectId(null);
+    setNotifications([]);
+    setShowNotifications(false);
+    setLastSeen(null);
   }
 
   async function loadInitialData() {
@@ -168,13 +233,40 @@ function App() {
     );
   }
 
+  const unseenCount = notifications.filter(n => !lastSeen || n.createdAt > lastSeen).length;
+
   return (
     <div className="dashboard-container">
       <header className="app-header">
         <div>
           <strong>UWPP</strong> - {user.email || user.username}
         </div>
-        <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
+          <button className="btn-secondary" onClick={toggleNotifications} style={{ position: 'relative' }}>
+            🔔 Bell
+            {unseenCount > 0 && (
+              <span className="badge" style={{ position: 'absolute', top: -5, right: -5, background: 'red', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '0.8rem' }}>
+                {unseenCount}
+              </span>
+            )}
+          </button>
+          {showNotifications && (
+            <div className="notifications-panel" style={{ position: 'absolute', top: '100%', right: '70px', background: 'white', border: '1px solid #ccc', zIndex: 10, width: '300px', maxHeight: '400px', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', color: 'black' }}>
+              <div style={{ padding: '0.5rem', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>Notifications</div>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '1rem', color: '#666' }}>No notifications</div>
+              ) : (
+                notifications.slice(0, 10).map(n => (
+                  <div key={n.notificationId} style={{ padding: '0.5rem', borderBottom: '1px solid #eee', textAlign: 'left' }}>
+                    <div style={{ fontSize: '0.9rem' }}>{n.message}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#666' }}>{new Date(n.createdAt).toLocaleString()}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+          <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
+        </div>
       </header>
 
       {globalError && <div className="error-banner" style={{ margin: '1rem 2rem 0' }}>{globalError}</div>}

@@ -241,6 +241,91 @@ Resources:
     Properties:
       RetentionInDays: 7
 
+  NotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/notifications/index.handler
+      Events:
+        GetApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /notifications
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt Table.Arn
+      LoggingConfig:
+        LogGroup: !Ref NotificationsLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: node22
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - backend/notifications/index.js
+        External:
+          - '@aws-sdk/*'
+
+  NotificationsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
+  ConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/notifications/consumer.handler
+      Environment:
+        Variables:
+          TOPIC_ARN: !Ref NotificationTopic
+      Events:
+        TaskAssignedEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - workforce.tasks
+              detail-type:
+                - TaskAssigned
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt Table.Arn
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref NotificationTopic
+      LoggingConfig:
+        LogGroup: !Ref ConsumerLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: node22
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - backend/notifications/consumer.js
+        External:
+          - '@aws-sdk/*'
+
+  ConsumerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+
   SiteBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -326,3 +411,5 @@ Outputs:
     Value: !Sub "https://${SiteDistribution.DomainName}"
   DistributionId:
     Value: !Ref SiteDistribution
+  NotificationTopicArn:
+    Value: !Ref NotificationTopic

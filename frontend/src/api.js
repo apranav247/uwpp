@@ -53,3 +53,4 @@ export const listTasks = (projectId) => api(`/tasks?projectId=${projectId}`);
 export const createTask = (data) => api('/tasks', { method: 'POST', body: JSON.stringify(data) });
 export const updateTask = (taskId, data) => api(`/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const listUsers = () => api('/users');
+export const listNotifications = () => api('/notifications');
