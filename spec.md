@@ -116,7 +116,7 @@ TypeScript, CommonJS, Scan operations in application code, fake AWS services in 
 - HTTP API JWT authorizer (401 without token, 200 with token, claims visible in Lambda): SUCCESS
 - DynamoDB / EventBridge rule -> Lambda / SNS email confirm / CloudWatch alarm: SUCCESS
 - esbuild layout verdict (shared.js import + root package.json deps): SUCCESS (with External: ['@aws-sdk/*'] configuration to avoid 'node:https' dynamic require errors)
-- S3 website: public hosting allowed? YES. Website URL format (exact pattern): http://<bucket-name>.s3-website-ap-southeast-2.amazonaws.com
+- S3 website: public hosting allowed? NO. All four public access block settings are `true`. Bucket is strictly private and accessed via CloudFront Origin Access Control (OAC).
 - SRP in browser on plain HTTP S3 URL (window.isSecureContext, typeof crypto.subtle): window.isSecureContext is false, typeof crypto.subtle is undefined.
 - CloudFront required: YES (Amplify SRP authentication requires crypto.subtle which requires a secure context / HTTPS).
 - CodeBuild: OK | CodePipeline: OK | GitHub connection authorized: YES
@@ -126,7 +126,12 @@ TypeScript, CommonJS, Scan operations in application code, fake AWS services in 
 - Phase 1 Outputs: ApiUrl (https://teqfifz5k9.execute-api.ap-southeast-2.amazonaws.com), SiteUrl (https://daic6fejgu1s5.cloudfront.net), DistributionId (EJ0G99S9VL4VG).
 - Phase 4 Outputs: Frontend pipeline build works; HTTPS Site URL is https://daic6fejgu1s5.cloudfront.net
 - Phase 5: EventBridge rule name pattern working, consumer working, SNS deployment/configuration status is unverified.
-
+- Phase 7 Security Findings:
+  - Cognito client WriteAttributes does NOT contain `custom:orgId`.
+  - Cognito client ExplicitAuthFlows contains `ALLOW_USER_SRP_AUTH` and `ALLOW_ADMIN_USER_PASSWORD_AUTH`, but `ALLOW_USER_PASSWORD_AUTH` is absent.
+  - S3 bucket public access is fully blocked (`BlockPublicAcls`, `IgnorePublicAcls`, `BlockPublicPolicy`, `RestrictPublicBuckets` all true).
+  - CodeBuildPolicy wildcard (`*`) resource statements include `logs:DescribeLogGroups`, `cloudwatch:DescribeAlarms`, `cognito-idp:*` (Create/Delete/Update UserPools and Clients), and `cloudfront:*` (Distributions, OAC, and Invalidations). These were necessary and justified in pipeline.yaml for the deployment of Phase 4 and Phase 6 infrastructure, but represent significant mutation privileges, not just read-only.
+- Phase 7 Discrepancy: Section 3.3 implies access tokens might reach the Lambda and fail with a 403. In reality, the HTTP API JWT authorizer explicitly demands the audience claim (`audience: [app client ID]`), which access tokens lack. Thus, API Gateway rejects access tokens with a 401 Unauthorized before they ever reach the Lambda.
 ## 5. DynamoDB schema (one table, NO Scan in application code)
 
 Table: keys PK (S), SK (S). GSI1: GSI1PK (S), GSI1SK (S), projection ALL. On-demand.
@@ -240,7 +245,7 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 6
+- Last completed phase: Phase 7
 - Completed functionality:
   - **Phase 0-2 (Verified)**: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
   - **Phase 3 (Verified)**: Automated CI/CD pipeline using GitHub (source repository, `main` branch), AWS CodePipeline, CodeBuild, AWS SAM, and CloudFormation.
@@ -272,5 +277,5 @@ DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, d
 - Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline), NotificationTopicArn, TasksErrorsAlarmName
 - Deployment status: Deployed (`uwpp-app` and `uwpp-pipeline` are `UPDATE_COMPLETE`).
 - Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`. Authentication token storage follows the configured AWS Amplify Auth storage behavior. No drag-and-drop. Notifications polling rather than push, no mark-read API, last-seen state stored in browser local storage, maximum 50 API notifications, and SNS publish failures logged without failing the consumer. Metrics are recomputed on each request; no caching. The alarm has no alarm actions configured and detects Lambda `Errors`, not every handled HTTP 5xx response. Task queries have a 50-page safety cap; the users query is limited to 100 users.
-- Next phase: Phase 7 (Planned)
-  - **Phase 7 Planned Work**: Scope remains to be decided.
+  - **Phase 7 (Verified)**: Automated integration testing script `tests/integration.js` verified 36/36 checks for end-to-end authentication, tenant isolation, validation, notifications, metrics consistency, CORS, and hosting security. Scripts clean up created resources deterministically. `README.md` was rewritten to document the architecture, setup instructions, sprint reviews, and retrospective.
+- AWS resources deployed:
