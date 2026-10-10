@@ -88,6 +88,7 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
   Resources are the table ARN (and its index ARN). No "*" unless unavoidable and justified here.
   - Justification for `*` in CodeBuildRole: AWS does not support resource-level scoping for `logs:DescribeLogGroups` and `cloudwatch:DescribeAlarms`; these are needed by CloudFormation for later phases.
   - Justification for EventBridge/IAM/Lambda additions in Phase 5: Pipeline CodeBuild requires read/tag actions on IAM roles, EventBridge targets, and Lambda policies to deploy the notification consumer stack.
+  - Justification for CloudWatch additions in Phase 6: Pipeline CodeBuild requires TagResource and ListTagsForResource actions on CloudWatch alarms to deploy the tasks error alarm.
 
 3.6 Monitoring
 - Explicit AWS::Logs::LogGroup per Lambda, RetentionInDays 7, attached with the function LoggingConfig. (Rule: the explicit LogGroup is created in the SAME phase as the function, with no explicit LogGroupName).
@@ -124,6 +125,7 @@ TypeScript, CommonJS, Scan operations in application code, fake AWS services in 
 - Limitations and deviations from this SPEC: We must use CloudFront to serve the S3 website because `crypto.subtle` is undefined over plain HTTP. We had to use Node.js 22.x and externalize the AWS SDK in esbuild to avoid dynamic require errors.
 - Phase 1 Outputs: ApiUrl (https://teqfifz5k9.execute-api.ap-southeast-2.amazonaws.com), SiteUrl (https://daic6fejgu1s5.cloudfront.net), DistributionId (EJ0G99S9VL4VG).
 - Phase 4 Outputs: Frontend pipeline build works; HTTPS Site URL is https://daic6fejgu1s5.cloudfront.net
+- Phase 5: EventBridge rule name pattern working, consumer working, SNS skipped or configured separately by user.
 
 ## 5. DynamoDB schema (one table, NO Scan in application code)
 
@@ -238,7 +240,7 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 4
+- Last completed phase: Phase 5
 - Completed functionality:
   - **Phase 0-2 (Verified)**: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
   - **Phase 3 (Verified)**: Automated CI/CD pipeline using GitHub (source repository, `main` branch), AWS CodePipeline, CodeBuild, AWS SAM, and CloudFormation.
@@ -247,16 +249,18 @@ DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, d
     - Responsibilities & Steps: CodePipeline orchestrates the flow. CodeBuild runs configured steps in `buildspec.yml`: tests (`npm test`), template validation (`sam validate --lint`), building (`sam build`), and deploying the application stack (`sam deploy`).
     - Execution Status: The `uwpp-pipeline` and `uwpp-app` stacks are in `UPDATE_COMPLETE` status. CodePipeline execution is verified as `Succeeded` for both Source and Build stages. The successful Phase 3 CodeBuild `uwpp-pipeline-build` run (revision `10dae0bf682f70acac6fab5825e0d803be5d5754`) matches the Phase 3 commit `10dae0b` in the repository, demonstrating a successful deployment of the application stack.
   - **Phase 4 (Verified)**: Commit 10d55e8. Frontend React app implemented with Amplify Auth and API client. Pipeline extended to build frontend, upload to private S3 site bucket, and invalidate CloudFront. GitHub push triggered CodePipeline successfully. Live browser tests passed on deployed HTTPS URL: Cognito login, project/task creation, status updates, assignment, refresh behavior, and cross-organization isolation (tenant separation). User C cannot see User A's organization data, and assignee dropdowns are organization-scoped.
+  - **Phase 5 (Verified)**: EventBridge task-assignment event reaches the consumer and creates a notification. User B receives the expected notification in the API and browser UI. User A cannot see User B's notification; User C in another organization receives no `orga` notifications. Repeating the same assignment creates no additional notification (idempotency). Cross-organization assignment is rejected with HTTP 400. Notification panel works, and mark-as-seen persistence and polling were manually verified.
 - AWS resources deployed:
-  - `uwpp-app` stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution)
+  - `uwpp-app` stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution, NotificationsFunction, ConsumerFunction, NotificationTopic)
   - `uwpp-pipeline` stack (ArtifactBucket, CodeBuildRole, PipelineRole, BuildProject, Pipeline)
 - Routes live:
   - /users
   - /projects
   - /tasks
   - /tasks/{taskId}
-- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline)
+  - /notifications
+- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline), NotificationTopicArn
 - Deployment status: Deployed (`uwpp-app` and `uwpp-pipeline` are `UPDATE_COMPLETE`).
-- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`. Authentication token storage follows the configured AWS Amplify Auth storage behavior. No drag-and-drop. Notifications and metrics are not yet implemented.
-- Next phase: Phase 5 (Planned)
-  - **Phase 5 Planned Work**: Scope remains to be decided.
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`. Authentication token storage follows the configured AWS Amplify Auth storage behavior. No drag-and-drop. Notifications polling rather than push, no mark-read API, last-seen state stored in browser local storage, maximum 50 API notifications, and SNS publish failures logged without failing the consumer. Metrics are not yet implemented.
+- Next phase: Phase 6 (Planned)
+  - **Phase 6 Planned Work**: Scope remains to be decided.
