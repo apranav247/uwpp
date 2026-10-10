@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { handler as projectsHandler } from '../backend/projects/index.js';
 import { handler as tasksHandler } from '../backend/tasks/index.js';
 import { handler as notificationsHandler } from '../backend/notifications/index.js';
+import { handler as metricsHandler } from '../backend/metrics/index.js';
 import * as shared from '../backend/shared.js';
 
 // We intercept the ddb export from shared.js
@@ -119,6 +120,12 @@ describe('Tenant Isolation', () => {
         // g. OrgB user GET /notifications returns empty (cannot see OrgA notifications)
         const r6 = await notificationsHandler(getEvent('GET', '/notifications', 'orgb', 'user-b'));
         expect(JSON.parse(r6.body).items.length).toBe(0);
+
+        // h. GET /metrics returns only OrgB metrics
+        const r7 = await metricsHandler(getEvent('GET', '/metrics', 'orgb', 'user-b'));
+        const m1 = JSON.parse(r7.body);
+        expect(m1.totalTasks).toBe(1); // Only bbbbbbbb-bbbb-bbbb-bbbb-cccccccccccc
+        expect(m1.tasksPerPerson.length).toBe(1);
     });
 
     it('OrgA user proves isolation against OrgB data', async () => {
@@ -150,5 +157,11 @@ describe('Tenant Isolation', () => {
         // g. Another OrgA user GET /notifications returns empty (cannot see user-a's notifications)
         const r6 = await notificationsHandler(getEvent('GET', '/notifications', 'orga', 'user-other'));
         expect(JSON.parse(r6.body).items.length).toBe(0);
+
+        // h. GET /metrics returns only OrgA metrics
+        const r7 = await metricsHandler(getEvent('GET', '/metrics', 'orga', 'user-a'));
+        const m2 = JSON.parse(r7.body);
+        expect(m2.totalTasks).toBe(1); // Only 11111111-1111-1111-1111-222222222222
+        expect(m2.tasksPerPerson.length).toBe(1);
     });
 });

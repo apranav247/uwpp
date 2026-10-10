@@ -241,6 +241,21 @@ Resources:
     Properties:
       RetentionInDays: 7
 
+  TasksErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TasksFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
   NotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -274,6 +289,43 @@ Resources:
           - '@aws-sdk/*'
 
   NotificationsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
+  MetricsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/metrics/index.handler
+      Events:
+        GetApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /metrics
+            Method: GET
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt Table.Arn
+      LoggingConfig:
+        LogGroup: !Ref MetricsLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: node22
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - backend/metrics/index.js
+        External:
+          - '@aws-sdk/*'
+
+  MetricsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: 7
@@ -413,3 +465,5 @@ Outputs:
     Value: !Ref SiteDistribution
   NotificationTopicArn:
     Value: !Ref NotificationTopic
+  TasksErrorsAlarmName:
+    Value: !Ref TasksErrorsAlarm

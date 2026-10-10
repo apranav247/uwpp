@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { signIn, signOut, getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth';
-import { listProjects, createProject, listTasks, createTask, updateTask, listUsers, listNotifications } from './api.js';
+import { listProjects, createProject, listTasks, createTask, updateTask, listUsers, listNotifications, getMetrics } from './api.js';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -22,6 +22,10 @@ function App() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState('');
+
+  // Metrics state
+  const [metrics, setMetrics] = useState(null);
+  const [metricsError, setMetricsError] = useState('');
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
@@ -140,6 +144,18 @@ function App() {
     setNotifications([]);
     setShowNotifications(false);
     setLastSeen(null);
+    setMetrics(null);
+    setMetricsError('');
+  }
+
+  async function loadMetrics() {
+    try {
+      const data = await getMetrics();
+      setMetrics(data);
+      setMetricsError('');
+    } catch (e) {
+      setMetricsError(`Failed to load metrics: ${e.message}`);
+    }
   }
 
   async function loadInitialData() {
@@ -150,6 +166,7 @@ function App() {
       ]);
       setProjects(projectsData.items.sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
       setUsers(usersData.items);
+      loadMetrics();
     } catch (e) {
       setGlobalError(`Failed to load data: ${e.message}`);
     }
@@ -192,6 +209,7 @@ function App() {
       const created = await createTask({ projectId: activeProjectId, title: newTaskTitle });
       setTasks(prev => [...prev, created].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
       setNewTaskTitle('');
+      loadMetrics();
     } catch (e) {
       setGlobalError(`Failed to create task: ${e.message}`);
     } finally {
@@ -204,6 +222,7 @@ function App() {
     try {
       const updated = await updateTask(taskId, updates);
       setTasks(prev => prev.map(t => t.taskId === taskId ? updated : t));
+      loadMetrics();
     } catch (e) {
       setGlobalError(`Failed to update task: ${e.message}`);
     }
@@ -302,6 +321,49 @@ function App() {
         </aside>
 
         <section className="board-container">
+          <div className="metrics-panel" style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #dee2e6', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Team Metrics</h3>
+              <button className="btn-secondary" onClick={loadMetrics} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Refresh</button>
+            </div>
+            {metricsError && <div style={{ color: 'red', fontSize: '0.8rem', marginTop: '0.5rem' }}>{metricsError}</div>}
+            {metrics && !metricsError && (
+              <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong>Completion Rate:</strong> {metrics.completionRate}% ({metrics.doneTasks} / {metrics.totalTasks} tasks)
+                  </div>
+                  <div className="progress-bar-bg" style={{ background: '#e9ecef', borderRadius: '4px', height: '16px', width: '100%', overflow: 'hidden' }}>
+                    <div className="progress-bar-fill" style={{ background: '#28a745', height: '100%', width: `${metrics.completionRate}%`, transition: 'width 0.3s ease' }}></div>
+                  </div>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <strong>Unassigned Tasks:</strong> {metrics.unassigned}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #ccc' }}>
+                        <th style={{ textAlign: 'left', padding: '4px' }}>Name</th>
+                        <th style={{ textAlign: 'right', padding: '4px' }}>Done</th>
+                        <th style={{ textAlign: 'right', padding: '4px' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {metrics.tasksPerPerson.map(p => (
+                        <tr key={p.userId} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '4px' }}>{p.name}</td>
+                          <td style={{ textAlign: 'right', padding: '4px' }}>{p.done}</td>
+                          <td style={{ textAlign: 'right', padding: '4px' }}>{p.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
           {activeProjectId ? (
             <>
               <div className="board-header">
