@@ -8,113 +8,203 @@ Users can log in, belong to a single organization (tenant), manage projects, cre
 
 The application is built on a serverless AWS infrastructure:
 
-- **Frontend**: React (built with Vite), utilizing AWS Amplify Auth. Served securely via a private Amazon S3 bucket behind an Amazon CloudFront distribution with Origin Access Control (OAC).
-- **Authentication**: Amazon Cognito User Pool. Organization isolation is enforced via a custom attribute (`custom:orgId`) embedded in the JWT ID token.
-- **API**: Amazon API Gateway HTTP API protected by a JWT Authorizer. It validates token signatures and audiences before passing requests to AWS Lambda.
-- **Compute**: Node.js AWS Lambda functions (ES Modules, Node 22.x) handling projects, tasks, users, metrics, and notifications.
-- **Database**: Single-table Amazon DynamoDB, utilizing on-demand billing. Keys are strictly derived from the `orgId` claim to guarantee structural tenant isolation.
-- **Event-Driven Workflows**: Amazon EventBridge captures `TaskAssigned` events. A consumer Lambda processes these events, writes them to DynamoDB, and can optionally publish to an SNS topic.
-- **Monitoring**: Explicit Amazon CloudWatch Log Groups with 7-day retention and a CloudWatch Alarm monitoring the Tasks Lambda for errors.
+- **Frontend:** React, built with Vite, using AWS Amplify Auth. The application is served through Amazon CloudFront from a private Amazon S3 bucket protected by Origin Access Control (OAC).
+- **Authentication:** Amazon Cognito User Pool. Organization membership is represented by the custom `custom:orgId` attribute in the validated identity token.
+- **API:** Amazon API Gateway HTTP API with a JWT authorizer that validates token signatures and configured audience claims.
+- **Compute:** Node.js 22.x AWS Lambda functions using ES modules to handle users, projects, tasks, metrics, and notifications.
+- **Database:** Amazon DynamoDB single-table design with on-demand billing. Organization-scoped partition keys are used to isolate tenant data.
+- **Event-driven workflows:** Amazon EventBridge routes `TaskAssigned` events to a consumer Lambda. The consumer writes notifications to DynamoDB and can optionally publish to an Amazon SNS topic.
+- **Monitoring:** CloudWatch log groups with seven-day retention and a CloudWatch alarm monitoring the Tasks Lambda `Errors` metric.
+- **CI/CD:** AWS CodePipeline, CodeBuild, AWS SAM, and GitHub CodeConnections automate testing, building, and deployment.
 
 ## 2. Security and Tenant Isolation
 
-Security and multi-tenant data isolation are the core design priorities of UWPP.
+Security and multi-tenant data isolation are core design priorities of UWPP.
 
-- **Strict Identity Boundaries**: API Gateway explicitly requires an audience match. Access tokens are blocked natively (401 Unauthorized) because they lack the required app client audience claim.
-- **Structural Data Isolation**: The `orgId` is extracted solely from the cryptographically verified JWT ID token. Handlers use this claim to construct DynamoDB Partition Keys (e.g., `ORG#<orgId>`). A user in Org A physically cannot query or address data belonging to Org B.
-- **Immutable Organization Membership**: The `custom:orgId` attribute is written securely via Cognito Admin APIs during seeding. The Cognito App Client `WriteAttributes` explicitly excludes `custom:orgId`, meaning users cannot change their organization.
-- **Automated Verification**: An exhaustive integration test (`tests/integration.js`) validates isolation. It proves that tampered tokens are rejected, unauthenticated access is denied, cross-tenant data requests return 404, cross-tenant assignee updates return 400, and no private data leaks across boundaries.
+- **Authentication:** Protected API endpoints require a valid JWT. Unauthenticated requests to the users, projects, notifications, and metrics endpoints returned HTTP `401` during verification.
+- **Organization scoping:** Backend handlers derive organization scope from the validated identity claims and use organization-scoped DynamoDB partition keys, such as `ORG#<orgId>`, for data access.
+- **Organization membership protection:** The `custom:orgId` attribute is configured through administrative Cognito operations during user seeding. The app client's `WriteAttributes` configuration excludes `custom:orgId`, preventing users from changing this attribute through the app client.
+- **Cross-tenant isolation:** Integration tests verify that users cannot access another organization's private data through the tested API workflows.
+- **Assignment validation:** The backend rejects assignment to a user who does not belong to the caller's organization. A cross-organization assignment attempt returned HTTP `400` during verification.
+- **Token validation:** The integration tests cover invalid and tampered tokens. An access-token request returned HTTP `403` during testing because the required organization claim was unavailable to the backend. This documents the observed behavior and does not imply that API Gateway itself returned that response.
+- **Automated verification:** The integration suite in `tests/integration.js` exercises authentication, tenant isolation, assignment validation, and cleanup against the deployed infrastructure.
 
 ## 3. Setup and Deployment
 
-UWPP utilizes a fully automated CI/CD pipeline using AWS CodePipeline, CodeBuild, AWS SAM (Serverless Application Model), and GitHub CodeConnections.
+UWPP uses AWS SAM for infrastructure as code and AWS CodePipeline for automated deployment.
+
+### Prerequisites
+
+Install and configure:
+
+- Node.js and npm
+- AWS CLI
+- AWS SAM CLI
+- Git
+- Access to an AWS account with the permissions required for deployment
+- A GitHub repository and an authenticated AWS CodeConnections connection
 
 ### Initial Setup
-1. Clone the repository and connect it to a GitHub repository.
-2. Ensure you have the AWS CLI, AWS SAM CLI, and Node.js (v22+) installed.
-3. Deploy the pipeline stack first:
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/apranav247/uwpp.git
+   cd uwpp
+   ```
+
+2. Install the root project dependencies:
+
+   ```bash
+   npm ci
+   ```
+
+3. Deploy the pipeline stack if it has not already been deployed:
+
    ```bash
    sam deploy -t pipeline/pipeline.yaml --stack-name uwpp-pipeline --capabilities CAPABILITY_NAMED_IAM
    ```
-4. Authenticate the AWS CodeConnections GitHub connection in the AWS Console.
-5. Push to the `main` branch.
 
-### Automated CI/CD
-Once the pipeline is established, pushing code to the `main` branch triggers an automated build:
-1. `npm test` runs all backend unit tests using Vitest.
-2. `sam validate --lint` checks infrastructure definitions.
-3. `sam build` bundles the Lambda functions (externalizing the AWS SDK v3 to prevent dynamic require issues).
-4. `sam deploy` deploys the `uwpp-app` application stack.
-5. The frontend is built against the newly deployed stack outputs.
-6. The frontend artifact is synchronized to the private S3 bucket, and a CloudFront invalidation is triggered.
+4. Complete the GitHub authorization for the AWS CodeConnections connection in the AWS Console.
 
-### Seeding Data
-Run the seeding script to create organizations and users for testing:
-```bash
-$env:STACK_NAME="uwpp-app"
-$s = Read-Host "Seed password" -AsSecureString; $env:SEED_PASSWORD = [System.Net.NetworkCredential]::new("",$s).Password
+5. Push changes to the `main` branch to trigger the pipeline.
+
+**Note:** The commands above describe the initial pipeline setup. The existing deployed environment does not need to be redeployed manually for every code change.
+
+### Automated CI/CD Workflow
+
+A push to `main` triggers the configured pipeline:
+
+1. Run backend unit tests using Vitest.
+2. Validate the SAM infrastructure templates using `sam validate --lint`.
+3. Build the Lambda functions using `sam build`.
+4. Deploy the application stack using SAM.
+5. Build the frontend using the deployed stack outputs.
+6. Synchronize the frontend build to the private S3 bucket.
+7. Invalidate CloudFront so that updated frontend assets can be served.
+
+The pipeline reports its execution status in AWS CodePipeline.
+
+### Seed Demonstration Data
+
+The seeding script creates the demonstration users and organizations required for testing. Run it only in an environment where you are authorized to create these resources.
+
+In PowerShell:
+
+```powershell
+$env:STACK_NAME = "uwpp-app"
+$s = Read-Host "Seed password" -AsSecureString
+$env:SEED_PASSWORD = [System.Net.NetworkCredential]::new("", $s).Password
 node scripts/seed.js
+Remove-Item Env:SEED_PASSWORD
 ```
+
+Use the credentials configured for your own demonstration environment. Never commit passwords, tokens, or other secrets to the repository.
 
 ## 4. User Stories
 
-| ID   | Story | Status |
-|------|-------|--------|
-| US1  | As a member I log in securely so that I only see my organization's data | Done |
-| US2  | As an admin I have seeded organizations and users for demonstration | Done |
-| US3  | As a member I create and view projects | Done |
-| US4  | As a member I create tasks in a project | Done |
-| US5  | As a member I assign a task to a teammate of my organization | Done |
-| US6  | As a member I move a task between TODO, IN_PROGRESS, DONE | Done |
-| US7  | As an assignee I get a notification when a task is assigned to me | Done |
-| US8  | As a manager I see completion rate and tasks per person | Done |
-| US9  | As a stakeholder I get proof that Org B cannot read Org A's data | Done |
-| US10 | As a developer, a push to main deploys automatically | Done |
-| US11 | As an operator I get retained logs and an alarm on errors | Done |
+| ID | User story | Status |
+|---|---|---|
+| US1 | As a member, I can log in securely and see only my organization's data. | Done |
+| US2 | As an administrator, I can seed organizations and users for demonstration. | Done |
+| US3 | As a member, I can create and view projects. | Done |
+| US4 | As a member, I can create tasks within a project. | Done |
+| US5 | As a member, I can assign tasks to teammates in my organization. | Done |
+| US6 | As a member, I can move tasks between TODO, IN_PROGRESS, and DONE. | Done |
+| US7 | As an assignee, I receive a notification when a task is assigned to me. | Done |
+| US8 | As a manager, I can view completion rates and tasks per person. | Done |
+| US9 | As a stakeholder, I can verify that one organization cannot read another organization's data. | Done |
+| US10 | As a developer, I can trigger deployment by pushing to `main`. | Done |
+| US11 | As an operator, I can access retained logs and a Lambda error alarm. | Done |
 
 ## 5. Sprint Review
 
-The project was delivered across two agile sprints. The board URL is: `<board URL>`
+The project was delivered across two agile sprints.
 
-**Sprint 1**: Focused on foundational infrastructure. Delivered the AWS SAM template, Cognito authentication, HTTP API, DynamoDB single-table design, CloudFront secure hosting, and the CI/CD CodePipeline. US1, US2, US3, US4, US5, US6, US10 were achieved.
-**Sprint 2**: Focused on event-driven architecture, observability, and robust verification. Delivered the EventBridge notification consumer, Team Metrics endpoints, CloudWatch Error alarms, and a rigorous automated integration test script. US7, US8, US9, US11 were achieved.
+### Sprint 1 — Foundation and Core Workflows
+
+The first sprint focused on infrastructure and core productivity features. It delivered the AWS SAM template, Cognito authentication, API Gateway, DynamoDB single-table design, secure CloudFront hosting, CI/CD pipeline, and project and task management workflows.
+
+The sprint covered user stories US1–US6 and US10.
+
+### Sprint 2 — Notifications, Observability, and Verification
+
+The second sprint focused on event-driven processing, operational visibility, and automated verification. It delivered the EventBridge notification workflow, team metrics endpoint and frontend panel, CloudWatch logging and error alarm, and integration tests for authentication and tenant isolation.
+
+The sprint covered user stories US7–US9 and US11.
+
+A project board URL is not included in this submission.
 
 ## 6. Retrospective
 
-- **What went well**: The serverless infrastructure-as-code approach with AWS SAM ensured environments were reproducible. The single-table DynamoDB design successfully enforced structural tenant isolation. The automated CodePipeline accelerated delivery and eliminated manual deployment errors.
-- **What could be improved**: <to be confirmed by author>
-- **Action items**: <to be confirmed by author>
+- **What went well:** AWS SAM provided infrastructure as code, the DynamoDB partition-key design supported structural tenant isolation, and CodePipeline automated the build and deployment workflow. Unit and integration tests provided repeatable verification of important application behaviors.
+- **What could be improved:** Integration and deployment checks could be more automated. Notifications currently use frontend polling, pagination is limited, and metrics are calculated on demand.
+- **Action items:** Add automated post-deployment smoke tests, implement robust pagination and real-time notification delivery, and extend monitoring and alerting.
 
 ## 7. Limitations and Future Work
 
-### Limitations
-- **Notifications**: Delivered via frontend polling rather than WebSockets/push. Read states are stored purely in browser local storage; there is no API endpoint to mark notifications as read.
-- **Pagination**: While tasks are capped to prevent full-table scans, robust keyset pagination is not implemented in the frontend.
-- **Metrics**: Team metrics are computed on-the-fly for every request. There is no caching layer, which may impact performance at high scale.
-- **Error Alarming**: The CloudWatch alarm relies on the generic Lambda `Errors` metric (unhandled exceptions/timeouts), rather than catching explicitly handled API `5xx` responses.
-- **IAM Policies**: CodeBuild execution roles require wildcard (`*`) resources for specific read actions (`logs:DescribeLogGroups`, `cloudwatch:DescribeAlarms`) and pipeline administration (`cognito-idp:*`, `cloudfront:*`) to support fully automated lifecycle management of CloudFront distributions and Cognito user pools.
+### Current Limitations
+
+- **Notifications:** The frontend uses polling rather than WebSockets or another push-based mechanism. Notification seen-state is stored in browser local storage, and there is no backend API endpoint to mark notifications as read.
+- **Pagination:** List endpoints have limits, but comprehensive keyset pagination is not implemented throughout the frontend.
+- **Metrics:** Team metrics are calculated on demand for each request. No caching layer is currently used.
+- **Error alarming:** The CloudWatch alarm monitors the Lambda `Errors` metric. It does not detect every handled HTTP `5xx` response, and an alarm state change does not automatically notify an operator unless an action is configured.
+- **IAM policies:** Some CodeBuild permissions use wildcard resources for actions that require broader resource scope, including log-group and alarm discovery and parts of Cognito and CloudFront lifecycle management. These permissions should be reviewed and narrowed where supported.
 
 ### Future Work
-- Implement WebSocket API Gateway for real-time push notifications.
-- Implement robust token-based pagination across all list endpoints.
-- Add an ElastiCache Redis or DynamoDB Streams-driven materialized view for team metrics caching.
-- Shift to finer-grained CloudWatch Custom Metrics for alarming on logical HTTP 500 errors.
+
+- Introduce WebSocket-based or another push-based notification delivery mechanism.
+- Implement robust token-based pagination across list endpoints.
+- Cache or precompute team metrics for larger workloads.
+- Add monitoring for application-level failures and configure notification actions for CloudWatch alarms.
+- Further narrow IAM permissions and strengthen automated post-deployment verification.
+- Improve notification delivery reliability and idempotency.
 
 ## 8. Demo Script
 
-**Preparation:**
-1. Ensure the `uwpp-app` stack is fully deployed.
-2. Run `node scripts/seed.js` to create `OrgA` (User A, User B) and `OrgB` (User C).
+### Preparation
 
-**Execution:**
-1. **Login & Authenticate**: Open the application in two separate incognito windows. Log into Window 1 as User A (`usera@example.com`) and Window 2 as User C (`userc@example.com`).
-2. **Demonstrate Isolation**: In Window 1, create a project named "Alpha" and a task. Note that Window 2 (User C) cannot see "Alpha".
-3. **Task Assignment**: In Window 1, assign the task to User B. Show that the dropdown only lists `OrgA` members.
-4. **Notifications**: Log into a new window as User B. Show the EventBridge-driven notification arriving in the UI ("User A assigned you a task").
-5. **Team Metrics**: Navigate to the metrics panel as User A. Show the completion rate and tasks-per-person update immediately as tasks are marked `DONE`.
-6. **Security Audit**: Open a terminal and run `npm run integration` to prove all 36 security and tenant isolation rules pass automatically against the live infrastructure.
+1. Confirm that the `uwpp-app` stack is deployed successfully.
+2. Confirm that the frontend is available through CloudFront.
+3. Ensure the seeded demonstration users are available and that you can authenticate with each account.
+4. Open the frontend in separate browser sessions to avoid sharing authentication state.
 
-The project was delivered across two agile sprints. A project board URL is not included in this submission.
+### Demonstration
 
-- **What could be improved**: Integration and deployment verification could be more automated. Notifications currently use polling, and pagination and monitoring could be enhanced.
-- **Action items**: Add automated deployment smoke tests, implement notification pagination and improved delivery, and extend monitoring and alerting.
+1. **Login and authentication:** Sign in as User A in one browser session and User C in another.
+2. **Tenant isolation:** As User A, create a project named `Alpha` and a task. Show that User C cannot see User A's project or task.
+3. **Task assignment:** As User A, assign the task to User B. Demonstrate that the assignment workflow restricts eligible assignees to the same organization.
+4. **Notifications:** Sign in as User B in a separate session and demonstrate the assignment notification. Explain that the backend uses EventBridge and a consumer Lambda, while the frontend polls for updates.
+5. **Team metrics:** As User A, show the metrics panel. Change a task's status to `DONE` and demonstrate the updated completion rate and per-person metrics.
+6. **Automated verification:** Run the integration suite against the deployed environment:
+
+   ```powershell
+   npm run integration
+   ```
+
+   Show the test results and cleanup summary. The previously verified run passed 36 integration checks and completed cleanup successfully.
+7. **CI/CD:** Show the latest successful CodePipeline execution for the submitted commit.
+8. **Monitoring:** Show the Tasks Lambda CloudWatch alarm and its configuration. Explain that the alarm monitors Lambda errors and does not, by itself, prove that a real failure triggered an alert.
+
+## 9. Verification Summary
+
+The following results were recorded during project verification:
+
+- **Unit tests:** 43 tests passed across 8 test files.
+- **Integration tests:** 36 checks passed against the deployed infrastructure, including tenant-isolation and authentication scenarios.
+- **Infrastructure validation:** `sam validate --lint` completed successfully.
+- **Backend build:** `sam build` completed successfully.
+- **Frontend build:** `npm run build` completed successfully.
+- **Deployment:** The application and pipeline CloudFormation stacks were verified in `UPDATE_COMPLETE` state.
+- **Endpoint health:** Unauthenticated requests to `/users`, `/projects`, `/notifications`, and `/metrics` returned HTTP `401`; the CloudFront frontend returned HTTP `200`.
+- **Repository synchronization:** The final verified source revision was pushed to the GitHub `main` branch.
+
+These results describe the checks actually recorded during development. They do not imply that every possible failure mode, scale limit, or alarm-notification path has been tested.
+
+## 10. Conclusion
+
+UWPP demonstrates a serverless, multi-tenant productivity application built with AWS services and supported by automated testing and CI/CD.
+
+The project brings together authentication, organization-scoped data access, project and task management, event-driven notifications, team metrics, infrastructure as code, deployment automation, and operational monitoring. Its integration tests provide repeatable evidence for important tenant-isolation and authorization behaviors.
+
+The identified limitations provide a roadmap for further improvements in scalability, notification delivery, pagination, and monitoring.
