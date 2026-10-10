@@ -268,6 +268,9 @@ const run = async () => {
 
     const httpsReq = (url, opts) => new Promise((resolve) => {
         const req = https.request(url, opts, (res) => {
+            res.on('error', () => {});
+            res.on('aborted', () => {});
+            res.resume();
             resolve({ status: res.statusCode, headers: res.headers });
         });
         req.on('error', () => resolve({ status: 0 }));
