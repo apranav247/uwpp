@@ -53,7 +53,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/uwpp-pipeline-build"
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/uwpp-pipeline-build:*"
               - Effect: Allow
@@ -68,7 +68,7 @@ Resources:
                   - s3:ListBucket
                   - s3:GetBucket*
                   - s3:PutBucket*
-                Resource: 
+                Resource:
                   - !Sub "arn:aws:s3:::uwpp-${AWS::AccountId}-${AWS::Region}-site"
                   - !Sub "arn:aws:s3:::uwpp-${AWS::AccountId}-${AWS::Region}-site/*"
               - Effect: Allow
@@ -78,6 +78,7 @@ Resources:
                   - cloudformation:ExecuteChangeSet
                   - cloudformation:DeleteChangeSet
                   - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
                   - cloudformation:ValidateTemplate
@@ -123,7 +124,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - apigateway:*
-                Resource: 
+                Resource:
                   - !Sub "arn:aws:apigateway:${AWS::Region}::/apis*"
                   - !Sub "arn:aws:apigateway:${AWS::Region}::/tags/*"
               - Effect: Allow
@@ -187,7 +188,7 @@ Resources:
                   - events:ListTagsForResource
                   - events:TagResource
                   - events:UntagResource
-                Resource: 
+                Resource:
                   - !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${AppStackName}-*"
                   - !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default"
               - Effect: Allow
@@ -229,7 +230,7 @@ Resources:
                   - s3:PutObject
                   - s3:GetObjectVersion
                   - s3:GetBucketVersioning
-                Resource: 
+                Resource:
                   - !GetAtt ArtifactBucket.Arn
                   - !Sub "${ArtifactBucket.Arn}/*"
               - Effect: Allow
