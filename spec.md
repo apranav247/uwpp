@@ -235,15 +235,33 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 2
-- Completed functionality: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
-- AWS resources deployed: uwpp-app stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution)
+- Last completed phase: Phase 3
+- Completed functionality:
+  - **Phase 0-2 (Verified)**: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
+  - **Phase 3 (Verified)**: Automated CI/CD pipeline using GitHub (source repository, `main` branch), AWS CodePipeline, CodeBuild, AWS SAM, and CloudFormation.
+    - Architecture & Purpose: Provide automated deployment triggered by a push to `main` (US10).
+    - Stacks: `uwpp-pipeline` is a separate stack that creates the pipeline infrastructure. It triggers updates to the `uwpp-app` stack.
+    - Responsibilities & Steps: CodePipeline orchestrates the flow. CodeBuild runs configured steps in `buildspec.yml`: tests (`npm test`), template validation (`sam validate --lint`), building (`sam build`), and deploying the application stack (`sam deploy`).
+    - Execution Status: The `uwpp-pipeline` and `uwpp-app` stacks are in `UPDATE_COMPLETE` status. CodePipeline execution is verified as `Succeeded` for both Source and Build stages. The latest successful CodeBuild `uwpp-pipeline-build` run (revision `10dae0bf682f70acac6fab5825e0d803be5d5754`) matches the latest commit `10dae0b` in the repository, demonstrating a successful deployment of the application stack.
+- AWS resources deployed:
+  - `uwpp-app` stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution)
+  - `uwpp-pipeline` stack (ArtifactBucket, CodeBuildRole, PipelineRole, BuildProject, Pipeline)
 - Routes live:
   - /users
   - /projects
   - /tasks
   - /tasks/{taskId}
-- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId
-- Deployment status: Deployed (uwpp-app)
-- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints.
-- Next phase: Phase 3
+- Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline)
+- Deployment status: Deployed (`uwpp-app` and `uwpp-pipeline` are `UPDATE_COMPLETE`).
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`.
+- Next phase: Phase 4 (Planned)
+  - **Phase 4 Planned Work (Frontend Integration)**:
+    1. Inspect the existing React/Vite frontend and current build configuration.
+    2. Connect the frontend to the existing authenticated backend APIs.
+    3. Integrate project creation and project listing.
+    4. Integrate task creation, assignment, and status updates.
+    5. Implement the three-column task board for TODO, IN_PROGRESS, and DONE.
+    6. Handle loading states, API errors, and authentication appropriately.
+    7. Keep tenant isolation enforced by the backend using the authenticated user's JWT claims. Never trust an organization ID supplied by the frontend request body.
+    8. Test the frontend against the existing backend without weakening security or disrupting CI/CD.
+    9. Review metrics and notifications against the existing project roadmap and document their implementation phase accurately.
