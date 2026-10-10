@@ -63,6 +63,20 @@ Resources:
                 Resource: !Sub "${ArtifactBucket.Arn}/*"
               - Effect: Allow
                 Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt ArtifactBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::uwpp-${AWS::AccountId}-${AWS::Region}-site/*"
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - cloudwatch:DescribeAlarms
+                Resource: "*"
+              - Effect: Allow
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:ListBucket
