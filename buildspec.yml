@@ -17,7 +17,16 @@ phases:
       - sam validate --lint
       - PATH=$(pwd)/.bin-override:$PATH sam build
       - sam deploy --stack-name $APP_STACK_NAME --region $AWS_REGION --s3-bucket $ARTIFACT_BUCKET --s3-prefix sam --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset
+      - API_URL=$(aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text); if [ -z "$API_URL" ]; then echo "ApiUrl empty" && exit 1; fi
+      - USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text); if [ -z "$USER_POOL_ID" ]; then echo "UserPoolId empty" && exit 1; fi
+      - USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text); if [ -z "$USER_POOL_CLIENT_ID" ]; then echo "UserPoolClientId empty" && exit 1; fi
+      - SITE_BUCKET=$(aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='SiteBucketName'].OutputValue" --output text); if [ -z "$SITE_BUCKET" ]; then echo "SiteBucketName empty" && exit 1; fi
+      - DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text); if [ -z "$DISTRIBUTION_ID" ]; then echo "DistributionId empty" && exit 1; fi
+      - printf "VITE_API_URL=%s\nVITE_USER_POOL_ID=%s\nVITE_USER_POOL_CLIENT_ID=%s\n" "$API_URL" "$USER_POOL_ID" "$USER_POOL_CLIENT_ID" > frontend/.env.production
+      - (cd frontend && npm ci && npm run build)
+      - aws s3 sync frontend/dist s3://$SITE_BUCKET --delete
+      - aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
   post_build:
     commands:
       - aws cloudformation describe-stacks --stack-name $APP_STACK_NAME --query "Stacks[0].Outputs" --output table
-      # Phase 4 adds the frontend build, S3 upload and CloudFront invalidation here
+      # Phase 4 frontend build, S3 upload, and CloudFront invalidation added in build phase
