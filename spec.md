@@ -63,7 +63,7 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
 - App client auth flows: ALLOW_USER_SRP_AUTH, ALLOW_REFRESH_TOKEN_AUTH, ALLOW_ADMIN_USER_PASSWORD_AUTH (test script, needs IAM
   credentials). ALLOW_USER_PASSWORD_AUTH only if Phase 0 shows admin auth is blocked; document as demo-only limitation.
 - No Hosted UI. Frontend uses Amplify Auth v6 (aws-amplify/auth only): signIn, signOut, fetchAuthSession.
-- Tokens are kept in browser storage by Amplify (demo limitation; XSS would expose them).
+- Authentication token storage follows the configured AWS Amplify Auth storage behavior (demo limitation; XSS would expose them).
 
 3.3 Token flow
 - Frontend sends the ID TOKEN (not the access token): "Authorization: Bearer <idToken>".
@@ -122,6 +122,7 @@ TypeScript, CommonJS, Scan operations in application code, fake AWS services in 
 - Session behavior (credential lifetime, what persists after lab ends): N/A (Standard AWS Account)
 - Limitations and deviations from this SPEC: We must use CloudFront to serve the S3 website because `crypto.subtle` is undefined over plain HTTP. We had to use Node.js 22.x and externalize the AWS SDK in esbuild to avoid dynamic require errors.
 - Phase 1 Outputs: ApiUrl (https://teqfifz5k9.execute-api.ap-southeast-2.amazonaws.com), SiteUrl (https://daic6fejgu1s5.cloudfront.net), DistributionId (EJ0G99S9VL4VG).
+- Phase 4 Outputs: Frontend pipeline build works; HTTPS Site URL is https://daic6fejgu1s5.cloudfront.net
 
 ## 5. DynamoDB schema (one table, NO Scan in application code)
 
@@ -236,14 +237,15 @@ KEEP: Cognito, isolation, DynamoDB, projects, tasks, assignment, EventBridge not
 DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, drag-and-drop.
 
 ## 12. CURRENT PROJECT STATE (update after every phase)
-- Last completed phase: Phase 3
+- Last completed phase: Phase 4
 - Completed functionality:
   - **Phase 0-2 (Verified)**: SAM foundation, Cognito, HTTP API JWT authorizer, DynamoDB table, CloudFront hosting, GET /users route. Seed script created. Projects and tasks creation, fetching, updating, and TaskAssigned event emission.
   - **Phase 3 (Verified)**: Automated CI/CD pipeline using GitHub (source repository, `main` branch), AWS CodePipeline, CodeBuild, AWS SAM, and CloudFormation.
     - Architecture & Purpose: Provide automated deployment triggered by a push to `main` (US10).
     - Stacks: `uwpp-pipeline` is a separate stack that creates the pipeline infrastructure. It triggers updates to the `uwpp-app` stack.
     - Responsibilities & Steps: CodePipeline orchestrates the flow. CodeBuild runs configured steps in `buildspec.yml`: tests (`npm test`), template validation (`sam validate --lint`), building (`sam build`), and deploying the application stack (`sam deploy`).
-    - Execution Status: The `uwpp-pipeline` and `uwpp-app` stacks are in `UPDATE_COMPLETE` status. CodePipeline execution is verified as `Succeeded` for both Source and Build stages. The latest successful CodeBuild `uwpp-pipeline-build` run (revision `10dae0bf682f70acac6fab5825e0d803be5d5754`) matches the latest commit `10dae0b` in the repository, demonstrating a successful deployment of the application stack.
+    - Execution Status: The `uwpp-pipeline` and `uwpp-app` stacks are in `UPDATE_COMPLETE` status. CodePipeline execution is verified as `Succeeded` for both Source and Build stages. The successful Phase 3 CodeBuild `uwpp-pipeline-build` run (revision `10dae0bf682f70acac6fab5825e0d803be5d5754`) matches the Phase 3 commit `10dae0b` in the repository, demonstrating a successful deployment of the application stack.
+  - **Phase 4 (Verified)**: Commit 10d55e8. Frontend React app implemented with Amplify Auth and API client. Pipeline extended to build frontend, upload to private S3 site bucket, and invalidate CloudFront. GitHub push triggered CodePipeline successfully. Live browser tests passed on deployed HTTPS URL: Cognito login, project/task creation, status updates, assignment, refresh behavior, and cross-organization isolation (tenant separation). User C cannot see User A's organization data, and assignee dropdowns are organization-scoped.
 - AWS resources deployed:
   - `uwpp-app` stack (Table, UserPool, UserPoolClient, HttpApi, UsersFunction, ProjectsFunction, TasksFunction, ProjectsLogGroup, TasksLogGroup, SiteBucket, SiteDistribution)
   - `uwpp-pipeline` stack (ArtifactBucket, CodeBuildRole, PipelineRole, BuildProject, Pipeline)
@@ -254,15 +256,6 @@ DROP in this order: SNS email, advanced styling, metrics UI, CloudWatch alarm, d
   - /tasks/{taskId}
 - Env vars / stack outputs: TABLE_NAME, ApiUrl, UserPoolId, UserPoolClientId, TableName, SiteBucketName, SiteUrl, DistributionId (app), PipelineName, ArtifactBucketName, BuildProjectName (pipeline)
 - Deployment status: Deployed (`uwpp-app` and `uwpp-pipeline` are `UPDATE_COMPLETE`).
-- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`.
-- Next phase: Phase 4 (Planned)
-  - **Phase 4 Planned Work (Frontend Integration)**:
-    1. Inspect the existing React/Vite frontend and current build configuration.
-    2. Connect the frontend to the existing authenticated backend APIs.
-    3. Integrate project creation and project listing.
-    4. Integrate task creation, assignment, and status updates.
-    5. Implement the three-column task board for TODO, IN_PROGRESS, and DONE.
-    6. Handle loading states, API errors, and authentication appropriately.
-    7. Keep tenant isolation enforced by the backend using the authenticated user's JWT claims. Never trust an organization ID supplied by the frontend request body.
-    8. Test the frontend against the existing backend without weakening security or disrupting CI/CD.
-    9. Review metrics and notifications against the existing project roadmap and document their implementation phase accurately.
+- Known limitations: CloudFront required for HTTPS. Lambda requires Node.js 22.x and AWS SDK externalization. PutEvents failure after update returns 200, lists capped at 100, no unassign, no pagination on list endpoints. In CodeBuild, a Linux relative path bug with `esbuild` requires an absolute `.bin-override` PATH workaround in `buildspec.yml`. Authentication token storage follows the configured AWS Amplify Auth storage behavior. No drag-and-drop. Notifications and metrics are not yet implemented.
+- Next phase: Phase 5 (Planned)
+  - **Phase 5 Planned Work**: Scope remains to be decided.
