@@ -87,6 +87,7 @@ Stacks: "uwpp-pipeline" (pipeline/pipeline.yaml, manual, once) and "uwpp-app" (t
   users: Query | notifications API: Query | consumer: PutItem, (sns:Publish) | metrics: Query.
   Resources are the table ARN (and its index ARN). No "*" unless unavoidable and justified here.
   - Justification for `*` in CodeBuildRole: AWS does not support resource-level scoping for `logs:DescribeLogGroups` and `cloudwatch:DescribeAlarms`; these are needed by CloudFormation for later phases.
+  - Justification for EventBridge/IAM/Lambda additions in Phase 5: Pipeline CodeBuild requires read/tag actions on IAM roles, EventBridge targets, and Lambda policies to deploy the notification consumer stack.
 
 3.6 Monitoring
 - Explicit AWS::Logs::LogGroup per Lambda, RetentionInDays 7, attached with the function LoggingConfig. (Rule: the explicit LogGroup is created in the SAME phase as the function, with no explicit LogGroupName).

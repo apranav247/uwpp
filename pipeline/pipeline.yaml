@@ -114,6 +114,9 @@ Resources:
                   - iam:DeleteRolePolicy
                   - iam:GetRolePolicy
                   - iam:UpdateAssumeRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:UntagRole
                 Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
               - Effect: Allow
                 Action:
@@ -134,6 +137,7 @@ Resources:
                   - lambda:ListTags
                   - lambda:TagResource
                   - lambda:UntagResource
+                  - lambda:GetPolicy
                 Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppStackName}-*"
               - Effect: Allow
                 Action:
@@ -202,6 +206,7 @@ Resources:
                   - events:ListTagsForResource
                   - events:TagResource
                   - events:UntagResource
+                  - events:ListTargetsByRule
                 Resource:
                   - !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${AppStackName}-*"
                   - !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default"
