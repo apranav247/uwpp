@@ -7,12 +7,15 @@ phases:
     commands:
       - npm ci
       - pip install --quiet aws-sam-cli
-      - export PATH=$PATH:./node_modules/.bin
+      - test -f node_modules/esbuild/bin/esbuild || (echo "esbuild executable missing" && exit 1)
+      - mkdir -p .bin-override
+      - ln -s $(pwd)/node_modules/esbuild/bin/esbuild $(pwd)/.bin-override/esbuild || exit 1
+      - rm -f node_modules/.bin/esbuild
   build:
     commands:
       - npm test
       - sam validate --lint
-      - sam build
+      - PATH=$(pwd)/.bin-override:$PATH sam build
       - sam deploy --stack-name $APP_STACK_NAME --region $AWS_REGION --s3-bucket $ARTIFACT_BUCKET --s3-prefix sam --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset
   post_build:
     commands:
