@@ -591,105 +591,328 @@ function App() {
         </aside>
 
         <section className="board-container">
-          <div className="metrics-panel" style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #dee2e6', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>Team Metrics</h3>
-              <button className="btn-secondary" onClick={loadMetrics} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Refresh</button>
+          <div className="metrics-panel">
+            <div className="metrics-header">
+              <h3 className="metrics-title">Team Metrics &amp; Overview</h3>
+              <button type="button" className="btn-secondary" onClick={loadMetrics}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                </svg>
+                <span>Refresh</span>
+              </button>
             </div>
-            {metricsError && <div style={{ color: 'red', fontSize: '0.8rem', marginTop: '0.5rem' }}>{metricsError}</div>}
-            {metrics && !metricsError && (
-              <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>Completion Rate:</strong> {metrics.completionRate}% ({metrics.doneTasks} / {metrics.totalTasks} tasks)
-                  </div>
-                  <div className="progress-bar-bg" style={{ background: '#e9ecef', borderRadius: '4px', height: '16px', width: '100%', overflow: 'hidden' }}>
-                    <div className="progress-bar-fill" style={{ background: '#28a745', height: '100%', width: `${metrics.completionRate}%`, transition: 'width 0.3s ease' }}></div>
-                  </div>
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <strong>Unassigned Tasks:</strong> {metrics.unassigned}
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #ccc' }}>
-                        <th style={{ textAlign: 'left', padding: '4px' }}>Name</th>
-                        <th style={{ textAlign: 'right', padding: '4px' }}>Done</th>
-                        <th style={{ textAlign: 'right', padding: '4px' }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metrics.tasksPerPerson.map(p => (
-                        <tr key={p.userId} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={{ padding: '4px' }}>{p.name}</td>
-                          <td style={{ textAlign: 'right', padding: '4px' }}>{p.done}</td>
-                          <td style={{ textAlign: 'right', padding: '4px' }}>{p.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+
+            {metricsError && (
+              <div className="error-banner" role="alert">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>{metricsError}</span>
               </div>
+            )}
+
+            {!metrics && !metricsError && (
+              <div className="metrics-loading-state">
+                <span className="spinner" aria-hidden="true" />
+                <span>Loading team metrics...</span>
+              </div>
+            )}
+
+            {metrics && !metricsError && (
+              <>
+                <div className="metrics-grid">
+                  <div className="metric-card">
+                    <div className="metric-card-header">
+                      <span className="metric-card-label">Total Tasks</span>
+                      <svg className="metric-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                      </svg>
+                    </div>
+                    <div className="metric-card-value">{metrics.totalTasks}</div>
+                    <span className="metric-card-subtext">Across all projects</span>
+                  </div>
+
+                  <div className="metric-card">
+                    <div className="metric-card-header">
+                      <span className="metric-card-label">Completed</span>
+                      <svg className="metric-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                    </div>
+                    <div className="metric-card-value">{metrics.doneTasks}</div>
+                    <span className="metric-card-subtext">{metrics.doneTasks} of {metrics.totalTasks} done</span>
+                  </div>
+
+                  <div className="metric-card">
+                    <div className="metric-card-header">
+                      <span className="metric-card-label">Completion Rate</span>
+                      <svg className="metric-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="18" y1="20" x2="18" y2="10" />
+                        <line x1="12" y1="20" x2="12" y2="4" />
+                        <line x1="6" y1="20" x2="6" y2="14" />
+                      </svg>
+                    </div>
+                    <div className="metric-card-value">{metrics.completionRate}%</div>
+                    <div className="metric-progress-wrapper">
+                      <div className="progress-bar-bg">
+                        <div
+                          className="progress-bar-fill"
+                          style={{ width: `${Math.min(100, Math.max(0, Number(metrics.completionRate) || 0))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="metric-card">
+                    <div className="metric-card-header">
+                      <span className="metric-card-label">Unassigned</span>
+                      <svg className="metric-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <line x1="17" y1="8" x2="23" y2="14" />
+                        <line x1="23" y1="8" x2="17" y2="14" />
+                      </svg>
+                    </div>
+                    <div className="metric-card-value">{metrics.unassigned}</div>
+                    <span className="metric-card-subtext">Awaiting owner</span>
+                  </div>
+                </div>
+
+                <div className="metrics-detail-grid">
+                  <div className="metrics-card-panel">
+                    <h4 className="metrics-panel-title">Tasks per Person</h4>
+                    <div className="team-metrics-table-wrapper">
+                      <table className="team-metrics-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Progress</th>
+                            <th style={{ textAlign: 'right' }}>Done</th>
+                            <th style={{ textAlign: 'right' }}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metrics.tasksPerPerson.length === 0 ? (
+                            <tr>
+                              <td colSpan="4" style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 'var(--space-4)' }}>
+                                No team members found
+                              </td>
+                            </tr>
+                          ) : (
+                            metrics.tasksPerPerson.map(p => {
+                              const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+                              return (
+                                <tr key={p.userId}>
+                                  <td>
+                                    <div className="team-member-cell">
+                                      <span className="avatar avatar-sm">
+                                        {(p.name || 'U').slice(0, 2).toUpperCase()}
+                                      </span>
+                                      <span>{p.name}</span>
+                                    </div>
+                                  </td>
+                                  <td className="team-progress-cell">
+                                    <div className="team-inline-progress-bg">
+                                      <div
+                                        className="team-inline-progress-fill"
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>{p.done}</td>
+                                  <td style={{ textAlign: 'right' }}>{p.total}</td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="metrics-card-panel">
+                    <h4 className="metrics-panel-title">Recent Activity</h4>
+                    {notifications.length === 0 ? (
+                      <div className="metrics-empty-state">
+                        <span>No recent activity recorded</span>
+                      </div>
+                    ) : (
+                      <div className="metrics-activity-list">
+                        {notifications.slice(0, 5).map(n => (
+                          <div key={n.notificationId} className="metrics-activity-item">
+                            <span className="metrics-activity-message">{n.message}</span>
+                            <span className="metrics-activity-time">
+                              {new Date(n.createdAt).toLocaleTimeString(undefined, {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
           {activeProjectId ? (
             <>
               <div className="board-header">
-                <h3>Tasks</h3>
-                <form onSubmit={handleCreateTask} style={{ display: 'flex', gap: '1rem', marginTop: '1rem', maxWidth: '400px' }}>
+                <div className="project-info-block">
+                  <div className="project-title-row">
+                    <h3 className="project-main-title">{activeProject?.name || 'Project'}</h3>
+                    <span className="badge badge-in-progress">
+                      {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+                    </span>
+                  </div>
+                  {activeProject?.description && (
+                    <p className="project-desc">{activeProject.description}</p>
+                  )}
+                </div>
+
+                <form onSubmit={handleCreateTask} className="task-create-form">
                   <input
-                    style={{ flex: 1, padding: '0.5rem' }}
+                    className="task-create-input"
                     type="text"
-                    placeholder="New task title"
+                    placeholder="New task title..."
                     value={newTaskTitle}
                     onChange={e => setNewTaskTitle(e.target.value)}
                     required
                   />
-                  <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={isSubmitting}>Create Task</button>
+                  <button type="submit" className="btn-primary" disabled={isSubmitting}>
+                    + Create Task
+                  </button>
                 </form>
               </div>
+
               <div className="board-columns">
-                {['TODO', 'IN_PROGRESS', 'DONE'].map(status => (
-                  <div key={status} className="board-column">
-                    <h3>{status.replace('_', ' ')}</h3>
-                    <div className="task-list">
-                      {tasks.filter(t => t.status === status).map(task => (
-                        <div key={task.taskId} className="task-card">
-                          <h4>{task.title}</h4>
-                          {task.description && <p>{task.description}</p>}
-
-                          <div className="task-actions">
-                            <select
-                              value={task.status}
-                              onChange={e => handleUpdateTask(task.taskId, { status: e.target.value })}
-                            >
-                              <option value="TODO">TODO</option>
-                              <option value="IN_PROGRESS">IN PROGRESS</option>
-                              <option value="DONE">DONE</option>
-                            </select>
-
-                            <select
-                              value={task.assignedTo || ''}
-                              onChange={e => handleUpdateTask(task.taskId, { assignedTo: e.target.value })}
-                            >
-                              <option value="" disabled>Unassigned</option>
-                              {users.map(u => (
-                                <option key={u.userId} value={u.userId}>{u.name}</option>
-                              ))}
-                            </select>
-                          </div>
+                {[
+                  { key: 'TODO', label: 'To Do', className: 'column-todo' },
+                  { key: 'IN_PROGRESS', label: 'In Progress', className: 'column-in-progress' },
+                  { key: 'DONE', label: 'Done', className: 'column-done' }
+                ].map(col => {
+                  const colTasks = tasks.filter(t => t.status === col.key);
+                  return (
+                    <div key={col.key} className={`board-column ${col.className}`}>
+                      <div className="column-header">
+                        <div className="column-title-group">
+                          {col.key === 'TODO' && (
+                            <svg className="column-status-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <circle cx="10" cy="10" r="5" />
+                            </svg>
+                          )}
+                          {col.key === 'IN_PROGRESS' && (
+                            <svg className="column-status-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {col.key === 'DONE' && (
+                            <svg className="column-status-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          <h4 className="column-title">{col.label}</h4>
                         </div>
-                      ))}
+                        <span className="column-count-badge">{colTasks.length}</span>
+                      </div>
+
+                      <div className="task-list">
+                        {colTasks.length === 0 ? (
+                          <div className="column-empty-state">
+                            <span>No tasks in this column</span>
+                          </div>
+                        ) : (
+                          colTasks.map(task => {
+                            const assignee = users.find(u => u.userId === task.assignedTo);
+                            return (
+                              <div key={task.taskId} className="task-card">
+                                <h5 className="task-card-title">{task.title}</h5>
+                                {task.description && (
+                                  <p className="task-card-desc">{task.description}</p>
+                                )}
+
+                                <div className="task-card-meta">
+                                  <div className="task-assignee-info">
+                                    {assignee ? (
+                                      <>
+                                        <span className="avatar avatar-sm">
+                                          {(assignee.name || 'U').slice(0, 2).toUpperCase()}
+                                        </span>
+                                        <span>{assignee.name}</span>
+                                      </>
+                                    ) : (
+                                      <span className="badge badge-todo">Unassigned</span>
+                                    )}
+                                  </div>
+                                  <span className={`badge ${
+                                    task.status === 'DONE' ? 'badge-done' :
+                                    task.status === 'IN_PROGRESS' ? 'badge-in-progress' :
+                                    'badge-todo'
+                                  }`}>
+                                    {task.status === 'IN_PROGRESS' ? 'In Progress' : task.status === 'DONE' ? 'Done' : 'To Do'}
+                                  </span>
+                                </div>
+
+                                <div className="task-actions">
+                                  <div className="task-select-wrapper">
+                                    <select
+                                      className="task-select"
+                                      value={task.status}
+                                      onChange={e => handleUpdateTask(task.taskId, { status: e.target.value })}
+                                      aria-label="Change task status"
+                                    >
+                                      <option value="TODO">To Do</option>
+                                      <option value="IN_PROGRESS">In Progress</option>
+                                      <option value="DONE">Done</option>
+                                    </select>
+                                    <svg className="task-select-arrow" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+
+                                  <div className="task-select-wrapper">
+                                    <select
+                                      className="task-select"
+                                      value={task.assignedTo || ''}
+                                      onChange={e => handleUpdateTask(task.taskId, { assignedTo: e.target.value })}
+                                      aria-label="Assign to teammate"
+                                    >
+                                      <option value="" disabled>Unassigned</option>
+                                      {users.map(u => (
+                                        <option key={u.userId} value={u.userId}>{u.name}</option>
+                                      ))}
+                                    </select>
+                                    <svg className="task-select-arrow" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           ) : (
-            <div style={{ padding: '2rem', color: '#666' }}>
-              Select a project to view tasks
+            <div className="no-project-selected-state">
+              <svg className="no-project-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+              <h4 className="no-project-title">Select a project to view tasks</h4>
+              <p className="no-project-subtitle">
+                Choose a project from the sidebar to inspect its board columns, assign tasks, and track team status.
+              </p>
             </div>
           )}
         </section>
